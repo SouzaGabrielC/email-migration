@@ -41,7 +41,7 @@ function findMailboxOrCreateIt (mailboxList, mailboxToFind, client) {
   return client.mailboxCreate([...mailboxToFind.parent, mailboxToFind.name])
 }
 
-async function downloadMessageAndUpload(msg, mailboxTo, fromClient, toClient) {
+function downloadMessageAndUpload(msg, mailboxTo, fromClient, toClient) {
 
   return fromClient
           .download(msg.uid, undefined, { uid: true })
@@ -49,7 +49,6 @@ async function downloadMessageAndUpload(msg, mailboxTo, fromClient, toClient) {
             const buffers = []
 
             content.on('data', (data) => {
-              console.log('DATA FROM MESSAGE', msg.uid, msg.flags, data)
               buffers.push(data)
             })
         
@@ -60,7 +59,6 @@ async function downloadMessageAndUpload(msg, mailboxTo, fromClient, toClient) {
               reject(err)
             })
           }))
-          // .then(promiseArray => Promise.all(promiseArray))
 }
 
 const main = async () => {
@@ -151,15 +149,26 @@ const main = async () => {
                   })
                 }
 
+                const messagesDownloadAndUploadPromises = []
                 for (const message of messages) {
-                  try {
-                    await downloadMessageAndUpload(message, toMailbox, fromClient, toClient)
-                    messagesUploadedCount += 1
-                  } catch (error) {
-                    logger.error('Error download and uploading message', message, 'from mailbox', fromMailbox.path, 'to', toMailbox.path, '| Error trace', error)
-                  }
+                  messagesDownloadAndUploadPromises.push(
+                    downloadMessageAndUpload(message, toMailbox, fromClient, toClient)
+                  )
                 }
+                
+                try {
+                  const results = await Promise.allSettled(messagesDownloadAndUploadPromises)
 
+                  results.forEach((result, index) => {
+                    if (result.status === 'fulfilled') {
+                      messagesUploadedCount += 1
+                    } else {
+                      logger.error('Error download and uploading message', messages[index], 'from mailbox', fromMailbox.path, 'to', toMailbox.path, '| Error trace', result.reason)
+                    }
+                  })
+                } catch (error) {
+                  logger.error(error)
+                }
               } catch (error) {
                 logger.error('Error getting messages from mailbox', fromMailbox.path, 'from message', initial, 'to', end, '| Error trace', error)
               }
