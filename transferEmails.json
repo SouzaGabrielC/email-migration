@@ -1,0 +1,26 @@
+{
+  "from": {
+    "provider": {
+      "host": "imap.serverfrom.com",
+      "port": 993
+    },
+    "emails": [
+      {
+        "email": "emailFrom@test.com.br",
+        "password": "password123"
+      }
+    ]
+  },
+  "to": {
+    "provider": {
+      "host": "imap.serverto.com",
+      "port": 143
+    },
+    "emails": [
+      {
+        "email": "emailTo@test.com.br",
+        "password": "password123"
+      }
+    ]
+  }
+}

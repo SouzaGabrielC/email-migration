@@ -81,6 +81,22 @@ const main = async () => {
       await fromClient.connect()
       await toClient.connect()
 
+      fromClient.on('close', async () => {
+        await fromClient.connect()
+      })
+
+      toClient.on('close', async () => {
+        await toClient.connect()
+      })
+
+      fromClient.on('error', (err) => {
+        logger.error('Erro on From client', err)
+      })
+
+      toClient.on('error', async () => {
+        logger.error('Erro on To client', err)
+      })
+
       logger.info(`Clients connected.`)
 
       const fromQuota = await fromClient.getQuota()
@@ -132,46 +148,41 @@ const main = async () => {
 
             let messagesUploadedCount = 0
 
-            // Read messages in a batch of 50 
-            for (let initial = 1; initial <= numOfMessages; initial += 50) {
-              const end = initial + 49 > numOfMessages ? '*' : initial + 49
+            logger.info('Getting messages from mailbox', fromMailbox, 'from message', 1, 'to', '*')
 
-              logger.info('Getting messages from mailbox', fromMailbox, 'from message', initial, 'to', end)
-
-              try {
-                const messages = []
-                // Getting messages from mailbox
-                for await (let msg of fromClient.fetch(`${initial}:${end}`, {uid: true, internalDate: true, flags: true})){
-                  messages.push({
-                    uid: msg.uid,
-                    date: msg.internalDate,
-                    flags: msg.flags
-                  })
-                }
-
-                const messagesDownloadAndUploadPromises = []
-                for (const message of messages) {
-                  messagesDownloadAndUploadPromises.push(
-                    downloadMessageAndUpload(message, toMailbox, fromClient, toClient)
-                  )
-                }
-                
-                try {
-                  const results = await Promise.allSettled(messagesDownloadAndUploadPromises)
-
-                  results.forEach((result, index) => {
-                    if (result.status === 'fulfilled') {
-                      messagesUploadedCount += 1
-                    } else {
-                      logger.error('Error download and uploading message', messages[index], 'from mailbox', fromMailbox.path, 'to', toMailbox.path, '| Error trace', result.reason)
-                    }
-                  })
-                } catch (error) {
-                  logger.error(error)
-                }
-              } catch (error) {
-                logger.error('Error getting messages from mailbox', fromMailbox.path, 'from message', initial, 'to', end, '| Error trace', error)
+            try {
+              const messages = []
+              // Getting messages from mailbox
+              for await (let msg of fromClient.fetch(`1:*`, {uid: true, internalDate: true, flags: true})){
+                messages.push({
+                  uid: msg.uid,
+                  date: msg.internalDate,
+                  flags: msg.flags
+                })
               }
+
+              const messagesDownloadAndUploadPromises = []
+              for (const message of messages) {
+                messagesDownloadAndUploadPromises.push(
+                  downloadMessageAndUpload(message, toMailbox, fromClient, toClient)
+                )
+              }
+              
+              try {
+                const results = await Promise.allSettled(messagesDownloadAndUploadPromises)
+
+                results.forEach((result, index) => {
+                  if (result.status === 'fulfilled') {
+                    messagesUploadedCount += 1
+                  } else {
+                    logger.error('Error download and uploading message', messages[index], 'from mailbox', fromMailbox.path, 'to', toMailbox.path, '| Error trace', result.reason)
+                  }
+                })
+              } catch (error) {
+                logger.error(error)
+              }
+            } catch (error) {
+              logger.error('Error getting messages from mailbox', fromMailbox.path, 'from message', 1, 'to', '*', '| Error trace', error)
             }
 
             logger.info('Messages uploaded to mailbox', toMailbox.path, ':', messagesUploadedCount, 'of', numOfMessages)
